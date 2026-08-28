@@ -41,7 +41,7 @@ export default function RootNavigator() {
         />
         <Stack.Screen name="Accounts" component={AccountsScreen} options={{ title: 'Cuentas' }} />
         <Stack.Screen name="Debts" component={DebtsScreen} options={{ title: 'Deudas' }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ajustes' }} />
+        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Banco (Open Banking)' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

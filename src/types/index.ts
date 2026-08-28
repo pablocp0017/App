@@ -9,8 +9,8 @@ export interface AssetAccount {
   balance: number;
   /** Interés anual estimado que genera la inversión (%), solo aplica a type === 'investment' */
   annualInterestRate?: number;
-  /** Si es la cuenta bancaria que recibe actualizaciones automáticas simuladas */
-  autoSyncEnabled?: boolean;
+  /** Las cuentas base de efectivo y banco no se pueden eliminar */
+  protected?: boolean;
 }
 
 export type ExpenseCategory =
@@ -95,4 +95,14 @@ export interface Settings {
   emergencyFundMonths: number;
   /** Límite de gasto mensual establecido por el usuario */
   monthlyExpenseLimit: number;
+}
+
+/** Estado de la conexión Open Banking con la entidad bancaria del usuario */
+export interface BankConnection {
+  connected: boolean;
+  institutionName?: string;
+  /** Cuenta de activo tipo "bank" a la que se aplican los movimientos sincronizados */
+  accountId?: string;
+  /** ISO datetime de la última sincronización realizada */
+  lastSyncAt?: string;
 }

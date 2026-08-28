@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,8 +8,11 @@ import SummaryCard from '../components/SummaryCard';
 import MonthSelector from '../components/MonthSelector';
 import ExpensePieChart from '../components/ExpensePieChart';
 import Fab from '../components/Fab';
+import EditValueModal from '../components/EditValueModal';
 import { colors } from '../theme/colors';
 import { currentMonthKey, shiftMonthKey } from '../utils/dateUtils';
+
+const AUTO_SYNC_INTERVAL_MS = 45000;
 import {
   emergencyFundTarget,
   expensesByCategory,
@@ -28,9 +31,25 @@ export default function DashboardScreen({ navigation }: Props) {
   const debts = useFinanceStore((s) => s.debts);
   const transactions = useFinanceStore((s) => s.transactions);
   const settings = useFinanceStore((s) => s.settings);
+  const bankConnection = useFinanceStore((s) => s.bankConnection);
+  const updateSettings = useFinanceStore((s) => s.updateSettings);
+  const syncBankTransactions = useFinanceStore((s) => s.syncBankTransactions);
 
   const [monthKey, setMonthKey] = useState(currentMonthKey());
   const isCurrentMonth = monthKey === currentMonthKey();
+
+  const [editingEmergencyMonths, setEditingEmergencyMonths] = useState(false);
+  const [editingLimit, setEditingLimit] = useState(false);
+
+  // Simula la llegada de movimientos en tiempo real vía Open Banking mientras el banco
+  // esté conectado (sustituye a un webhook real del proveedor Open Banking).
+  useEffect(() => {
+    if (!bankConnection.connected) return;
+    const interval = setInterval(() => {
+      syncBankTransactions();
+    }, AUTO_SYNC_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [bankConnection.connected, syncBankTransactions]);
 
   const assets = useMemo(() => totalAssets(accounts), [accounts]);
   const income = useMemo(() => monthlyIncome(transactions, monthKey), [transactions, monthKey]);
@@ -71,7 +90,11 @@ export default function DashboardScreen({ navigation }: Props) {
               <Ionicons name="document-text-outline" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.iconButton}>
-              <Ionicons name="settings-outline" size={22} color={colors.textPrimary} />
+              <Ionicons
+                name={bankConnection.connected ? 'sync-circle-outline' : 'link-outline'}
+                size={22}
+                color={colors.textPrimary}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -88,7 +111,12 @@ export default function DashboardScreen({ navigation }: Props) {
             <Text style={styles.cardLabel}>
               Fondo de emergencia ({settings.emergencyFundMonths} {settings.emergencyFundMonths === 1 ? 'mes' : 'meses'})
             </Text>
-            <Text style={styles.cardLabel}>{Math.round(emergencyCoveragePct)}%</Text>
+            <View style={styles.headerRightGroup}>
+              <Text style={styles.cardLabel}>{Math.round(emergencyCoveragePct)}%</Text>
+              <TouchableOpacity onPress={() => setEditingEmergencyMonths(true)} hitSlop={8}>
+                <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
           <Text style={styles.emergencyValue}>{formatCurrency(emergencyTarget)}</Text>
           <View style={styles.progressTrack}>
@@ -122,9 +150,14 @@ export default function DashboardScreen({ navigation }: Props) {
         <View style={styles.limitCard}>
           <View style={styles.emergencyHeaderRow}>
             <Text style={styles.cardLabel}>Límite mensual de gastos</Text>
-            <Text style={[styles.cardLabel, overLimit && { color: colors.negative }]}>
-              {expenseLimit > 0 ? `${Math.round(expensePct)}%` : 'Sin definir'}
-            </Text>
+            <View style={styles.headerRightGroup}>
+              <Text style={[styles.cardLabel, overLimit && { color: colors.negative }]}>
+                {expenseLimit > 0 ? `${Math.round(expensePct)}%` : 'Sin definir'}
+              </Text>
+              <TouchableOpacity onPress={() => setEditingLimit(true)} hitSlop={8}>
+                <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
           <Text style={styles.limitValue}>
             {formatCurrency(expenses)} / {expenseLimit > 0 ? formatCurrency(expenseLimit) : '—'}
@@ -142,7 +175,7 @@ export default function DashboardScreen({ navigation }: Props) {
           </View>
           {expenseLimit === 0 && (
             <Text style={styles.helperText}>
-              Define un límite mensual desde Ajustes para hacer seguimiento.
+              Toca el lápiz para definir tu límite mensual y hacer seguimiento.
             </Text>
           )}
         </View>
@@ -163,6 +196,38 @@ export default function DashboardScreen({ navigation }: Props) {
 
       {/* 9. Botón flotante para registrar ingresos/gastos */}
       <Fab onPress={() => navigation.navigate('AddTransaction')} />
+
+      <EditValueModal
+        visible={editingEmergencyMonths}
+        title="Fondo de emergencia"
+        label="Meses de gastos que quieres tener cubiertos"
+        initialValue={String(settings.emergencyFundMonths)}
+        keyboardType="number-pad"
+        onCancel={() => setEditingEmergencyMonths(false)}
+        onSave={(value) => {
+          const months = parseInt(value, 10);
+          if (Number.isFinite(months) && months > 0) {
+            updateSettings({ emergencyFundMonths: months });
+          }
+          setEditingEmergencyMonths(false);
+        }}
+      />
+
+      <EditValueModal
+        visible={editingLimit}
+        title="Límite mensual de gastos"
+        label="Cantidad máxima que quieres gastar cada mes (€)"
+        initialValue={String(settings.monthlyExpenseLimit)}
+        keyboardType="decimal-pad"
+        onCancel={() => setEditingLimit(false)}
+        onSave={(value) => {
+          const limit = parseFloat(value.replace(',', '.'));
+          if (Number.isFinite(limit) && limit >= 0) {
+            updateSettings({ monthlyExpenseLimit: limit });
+          }
+          setEditingLimit(false);
+        }}
+      />
     </View>
   );
 }
@@ -211,6 +276,11 @@ const styles = StyleSheet.create({
   emergencyHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  headerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   cardLabel: {
     color: colors.textSecondary,

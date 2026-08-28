@@ -5,16 +5,19 @@ import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import {
   AssetAccount,
+  BankConnection,
   Debt,
   Settings,
   Transaction,
 } from '../types';
+import { mockBankSyncProvider } from '../services/bankSync/mockProvider';
 
 interface FinanceState {
   accounts: AssetAccount[];
   debts: Debt[];
   transactions: Transaction[];
   settings: Settings;
+  bankConnection: BankConnection;
   hasHydrated: boolean;
 
   setHasHydrated: (value: boolean) => void;
@@ -33,27 +36,30 @@ interface FinanceState {
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
   removeTransaction: (id: string) => void;
 
-  // Simulación de ingreso automático del banco
-  applyAutomaticBankMovement: (params: {
-    accountId: string;
-    amount: number;
-    type: 'income' | 'expense';
-    description: string;
-    category?: Transaction['category'];
-  }) => void;
+  // Open Banking: conexión y sincronización con la cuenta bancaria real
+  connectBank: (institutionId: string) => Promise<void>;
+  disconnectBank: () => Promise<void>;
+  syncBankTransactions: () => Promise<number>;
 
   // Ajustes
   updateSettings: (updates: Partial<Settings>) => void;
 }
 
+const CASH_ACCOUNT_ID = 'cash-default';
+const BANK_ACCOUNT_ID = 'bank-default';
+
 const defaultAccounts: AssetAccount[] = [
-  { id: 'cash-default', type: 'cash', name: 'Efectivo', balance: 0 },
-  { id: 'bank-default', type: 'bank', name: 'Cuenta bancaria', balance: 0, autoSyncEnabled: false },
+  { id: CASH_ACCOUNT_ID, type: 'cash', name: 'Efectivo', balance: 0, protected: true },
+  { id: BANK_ACCOUNT_ID, type: 'bank', name: 'Cuenta bancaria', balance: 0, protected: true },
 ];
 
 const defaultSettings: Settings = {
   emergencyFundMonths: 3,
   monthlyExpenseLimit: 0,
+};
+
+const defaultBankConnection: BankConnection = {
+  connected: false,
 };
 
 function applyBalanceDelta(
@@ -73,6 +79,7 @@ export const useFinanceStore = create<FinanceState>()(
       debts: [],
       transactions: [],
       settings: defaultSettings,
+      bankConnection: defaultBankConnection,
       hasHydrated: false,
 
       setHasHydrated: (value) => set({ hasHydrated: value }),
@@ -91,7 +98,7 @@ export const useFinanceStore = create<FinanceState>()(
 
       removeAccount: (id) =>
         set((state) => ({
-          accounts: state.accounts.filter((acc) => acc.id !== id),
+          accounts: state.accounts.filter((acc) => acc.id !== id || acc.protected),
         })),
 
       addDebt: (debt) =>
@@ -154,16 +161,46 @@ export const useFinanceStore = create<FinanceState>()(
           };
         }),
 
-      applyAutomaticBankMovement: ({ accountId, amount, type, description, category }) => {
-        get().addTransaction({
-          type,
-          amount,
-          date: new Date().toISOString().slice(0, 10),
-          description,
-          accountId,
-          category,
-          isAutomatic: true,
+      connectBank: async (institutionId) => {
+        const { institutionName } = await mockBankSyncProvider.connect(institutionId);
+        set({
+          bankConnection: {
+            connected: true,
+            institutionName,
+            accountId: BANK_ACCOUNT_ID,
+            lastSyncAt: undefined,
+          },
         });
+        await get().syncBankTransactions();
+      },
+
+      disconnectBank: async () => {
+        await mockBankSyncProvider.disconnect();
+        set({ bankConnection: defaultBankConnection });
+      },
+
+      syncBankTransactions: async () => {
+        const { bankConnection } = get();
+        if (!bankConnection.connected || !bankConnection.accountId) return 0;
+
+        const movements = await mockBankSyncProvider.fetchNewMovements(bankConnection.lastSyncAt);
+        movements.forEach((movement) => {
+          get().addTransaction({
+            type: movement.type,
+            amount: movement.amount,
+            date: movement.date,
+            description: movement.description,
+            accountId: bankConnection.accountId as string,
+            category: movement.category,
+            isAutomatic: true,
+          });
+        });
+
+        set((state) => ({
+          bankConnection: { ...state.bankConnection, lastSyncAt: new Date().toISOString() },
+        }));
+
+        return movements.length;
       },
 
       updateSettings: (updates) =>

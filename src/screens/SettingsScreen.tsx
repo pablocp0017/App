@@ -1,56 +1,128 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { colors } from '../theme/colors';
+import { mockBankSyncProvider } from '../services/bankSync/mockProvider';
+import { BankInstitution } from '../services/bankSync/types';
 
 export default function SettingsScreen() {
-  const settings = useFinanceStore((s) => s.settings);
-  const updateSettings = useFinanceStore((s) => s.updateSettings);
+  const bankConnection = useFinanceStore((s) => s.bankConnection);
+  const connectBank = useFinanceStore((s) => s.connectBank);
+  const disconnectBank = useFinanceStore((s) => s.disconnectBank);
+  const syncBankTransactions = useFinanceStore((s) => s.syncBankTransactions);
 
-  const [months, setMonths] = useState(String(settings.emergencyFundMonths));
-  const [limit, setLimit] = useState(String(settings.monthlyExpenseLimit));
+  const [institutions, setInstitutions] = useState<BankInstitution[]>([]);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
-  const handleSave = () => {
-    const monthsValue = parseInt(months, 10);
-    const limitValue = parseFloat(limit.replace(',', '.'));
-    updateSettings({
-      emergencyFundMonths: Number.isFinite(monthsValue) && monthsValue > 0 ? monthsValue : settings.emergencyFundMonths,
-      monthlyExpenseLimit: Number.isFinite(limitValue) && limitValue >= 0 ? limitValue : settings.monthlyExpenseLimit,
-    });
+  useEffect(() => {
+    mockBankSyncProvider.listInstitutions().then(setInstitutions);
+  }, []);
+
+  const handleConnect = async (institution: BankInstitution) => {
+    Alert.alert(
+      'Autorizar acceso Open Banking',
+      `Vas a autorizar a esta app a leer los movimientos e ingresos/gastos de tu cuenta en ${institution.name}, según la normativa PSD2. ¿Continuar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Autorizar',
+          onPress: async () => {
+            setConnectingId(institution.id);
+            try {
+              await connectBank(institution.id);
+            } finally {
+              setConnectingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDisconnect = () => {
+    Alert.alert('Desconectar banco', 'Dejarás de recibir movimientos automáticos. ¿Continuar?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Desconectar', style: 'destructive', onPress: () => disconnectBank() },
+    ]);
+  };
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      const count = await syncBankTransactions();
+      Alert.alert(
+        'Sincronización completada',
+        count > 0
+          ? `Se han importado ${count} movimiento(s) nuevo(s) de tu banco.`
+          : 'No hay movimientos nuevos por ahora.'
+      );
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.sectionHeader}>Fondo de emergencia</Text>
+      <Text style={styles.sectionHeader}>Conexión bancaria (Open Banking)</Text>
       <Text style={styles.helperText}>
-        Número de meses de gastos que quieres tener siempre disponibles como colchón.
+        Conecta tu cuenta bancaria para que tus ingresos y gastos se registren automáticamente
+        en el activo y en el saldo del banco, sin tener que introducirlos a mano.
       </Text>
-      <TextInput
-        style={styles.input}
-        keyboardType="number-pad"
-        value={months}
-        onChangeText={setMonths}
-        placeholder="3"
-        placeholderTextColor={colors.textSecondary}
-      />
 
-      <Text style={styles.sectionHeader}>Límite de gasto mensual</Text>
-      <Text style={styles.helperText}>
-        Cantidad máxima que quieres gastar cada mes. Se usará para avisarte cuando te acerques
-        al límite.
-      </Text>
-      <TextInput
-        style={styles.input}
-        keyboardType="decimal-pad"
-        value={limit}
-        onChangeText={setLimit}
-        placeholder="0"
-        placeholderTextColor={colors.textSecondary}
-      />
+      {bankConnection.connected ? (
+        <View style={styles.connectedCard}>
+          <View style={styles.connectedHeader}>
+            <Ionicons name="checkmark-circle" size={22} color={colors.positive} />
+            <Text style={styles.connectedTitle}>{bankConnection.institutionName}</Text>
+          </View>
+          <Text style={styles.helperText}>
+            {bankConnection.lastSyncAt
+              ? `Última sincronización: ${new Date(bankConnection.lastSyncAt).toLocaleString('es-ES')}`
+              : 'Aún no se ha sincronizado ningún movimiento.'}
+          </Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleSyncNow} disabled={syncing}>
+            {syncing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Sincronizar ahora</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleDisconnect}>
+            <Text style={styles.secondaryButtonText}>Desconectar banco</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View>
+          <Text style={styles.subHeader}>Elige tu entidad bancaria</Text>
+          {institutions.map((inst) => (
+            <TouchableOpacity
+              key={inst.id}
+              style={styles.institutionRow}
+              onPress={() => handleConnect(inst)}
+              disabled={connectingId !== null}
+            >
+              <Ionicons name="business-outline" size={18} color={colors.accent} />
+              <Text style={styles.institutionName}>{inst.name}</Text>
+              {connectingId === inst.id ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>Guardar ajustes</Text>
-      </TouchableOpacity>
+      <View style={styles.noteCard}>
+        <Text style={styles.noteText}>
+          Nota: esta demo simula el flujo de Open Banking (PSD2) sin conectar con un banco
+          real. Una integración real requiere un proveedor certificado (ej. Plaid, Tink,
+          GoCardless Bank Account Data) y un backend propio que gestione el consentimiento y
+          las credenciales de forma segura.
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -65,7 +137,14 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
-    marginTop: 18,
+    marginTop: 8,
+  },
+  subHeader: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 14,
+    marginBottom: 8,
   },
   helperText: {
     color: colors.textSecondary,
@@ -73,25 +152,77 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 10,
   },
-  input: {
+  connectedCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 8,
+  },
+  connectedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  connectedTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  institutionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
-    color: colors.textPrimary,
-    fontSize: 16,
+    marginBottom: 10,
   },
-  saveButton: {
-    marginTop: 30,
+  institutionName: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    marginTop: 16,
     backgroundColor: colors.accent,
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  saveButtonText: {
+  primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 16,
+  },
+  secondaryButton: {
+    marginTop: 10,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryButtonText: {
+    color: colors.negative,
+    fontWeight: '700',
+  },
+  noteCard: {
+    marginTop: 24,
+    marginBottom: 30,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  noteText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 16,
   },
 });
