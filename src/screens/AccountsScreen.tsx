@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { MainTabParamList } from '../navigation/types';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { colors } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { radius, spacing } from '../theme/spacing';
 import { formatCurrency, investmentMonthlyReturn, investmentAnnualReturn } from '../utils/calculations';
 import { AssetAccount, AssetAccountType } from '../types';
 import EditValueModal from '../components/EditValueModal';
+import PressableScale from '../components/PressableScale';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Accounts'>;
+type Props = BottomTabScreenProps<MainTabParamList, 'Accounts'>;
 
 const TYPE_LABEL: Record<AssetAccountType, string> = {
   cash: 'Efectivo',
@@ -63,21 +67,27 @@ export default function AccountsScreen({ navigation }: Props) {
 
   const editingAccount = accounts.find((a) => a.id === editingBalanceId) ?? null;
 
-  const renderAccount = (account: AssetAccount) => (
-    <View key={account.id} style={styles.card}>
+  const renderAccount = (account: AssetAccount, index: number) => (
+    <Animated.View
+      key={account.id}
+      entering={FadeInDown.delay(index * 50).duration(280)}
+      style={styles.card}
+    >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
-          <Ionicons name={TYPE_ICON[account.type]} size={18} color={colors.accent} />
+          <View style={styles.iconBadge}>
+            <Ionicons name={TYPE_ICON[account.type]} size={16} color={colors.accent} />
+          </View>
           <Text style={styles.cardTitle}>{account.name}</Text>
         </View>
         <View style={styles.cardActions}>
-          <TouchableOpacity onPress={() => setEditingBalanceId(account.id)} hitSlop={10}>
+          <PressableScale onPress={() => setEditingBalanceId(account.id)} hitSlop={10}>
             <Ionicons name="pencil-outline" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
+          </PressableScale>
           {!account.protected && (
-            <TouchableOpacity onPress={() => handleRemove(account)} hitSlop={10}>
+            <PressableScale onPress={() => handleRemove(account)} hitSlop={10}>
               <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
+            </PressableScale>
           )}
         </View>
       </View>
@@ -87,9 +97,7 @@ export default function AccountsScreen({ navigation }: Props) {
 
       {account.type === 'investment' && (
         <View style={styles.investmentInfo}>
-          <Text style={styles.helperText}>
-            Interés anual: {account.annualInterestRate ?? 0}%
-          </Text>
+          <Text style={styles.helperText}>Interés anual: {account.annualInterestRate ?? 0}%</Text>
           <Text style={styles.helperText}>
             Rendimiento estimado: {formatCurrency(investmentAnnualReturn(account))}/año ·{' '}
             {formatCurrency(investmentMonthlyReturn(account))}/mes
@@ -98,9 +106,10 @@ export default function AccountsScreen({ navigation }: Props) {
       )}
 
       {account.type === 'bank' && (
-        <TouchableOpacity
+        <PressableScale
           style={styles.bankStatusRow}
           onPress={() => navigation.navigate('Settings')}
+          haptic={false}
         >
           <Ionicons
             name={bankConnection.connected ? 'checkmark-circle' : 'alert-circle-outline'}
@@ -112,13 +121,15 @@ export default function AccountsScreen({ navigation }: Props) {
               ? `Sincronizado automáticamente con ${bankConnection.institutionName} (Open Banking)`
               : 'Conecta tu banco por Open Banking para automatizar tus movimientos'}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       )}
-    </View>
+    </Animated.View>
   );
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={styles.screenTitle}>Cuentas</Text>
+
       <Text style={styles.sectionHeader}>Efectivo y banco</Text>
       <Text style={styles.helperText}>
         Toca el lápiz para ajustar el saldo manualmente (por ejemplo, para introducir el
@@ -157,9 +168,9 @@ export default function AccountsScreen({ navigation }: Props) {
           value={newRate}
           onChangeText={setNewRate}
         />
-        <TouchableOpacity style={styles.saveButton} onPress={handleAddAccount}>
+        <PressableScale style={styles.saveButton} onPress={handleAddAccount}>
           <Text style={styles.saveButtonText}>Añadir inversión</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <EditValueModal
@@ -185,20 +196,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
+    padding: spacing.lg,
+  },
+  screenTitle: {
+    ...typography.display,
+    fontSize: 26,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   sectionHeader: {
+    ...typography.title,
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 18,
-    marginBottom: 10,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -210,70 +227,77 @@ const styles = StyleSheet.create({
   cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
+  },
+  iconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardActions: {
     flexDirection: 'row',
-    gap: 14,
+    gap: spacing.lg,
   },
   cardTitle: {
+    ...typography.subtitle,
     color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
   },
   balance: {
+    ...typography.numeric,
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 8,
+    marginTop: spacing.md,
   },
   typeTag: {
+    ...typography.micro,
     color: colors.textSecondary,
-    fontSize: 12,
     marginTop: 2,
   },
   investmentInfo: {
-    marginTop: 10,
+    marginTop: spacing.md,
     gap: 2,
   },
   bankStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
   helperText: {
-    color: colors.textSecondary,
+    ...typography.body,
     fontSize: 12,
-    marginBottom: 8,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
     flexShrink: 1,
   },
   newCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 10,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginTop: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 10,
+    gap: spacing.md,
   },
   input: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
+    padding: spacing.md,
     color: colors.textPrimary,
   },
   saveButton: {
     backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   saveButtonText: {
+    ...typography.subtitle,
     color: '#fff',
-    fontWeight: '700',
   },
 });

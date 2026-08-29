@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { colors } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { radius, spacing } from '../theme/spacing';
 import {
   debtMonthlyInterestCost,
   formatCurrency,
   totalMonthlyDebtPayments,
 } from '../utils/calculations';
+import PressableScale from '../components/PressableScale';
 
 export default function DebtsScreen() {
   const debts = useFinanceStore((s) => s.debts);
@@ -46,6 +42,8 @@ export default function DebtsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={styles.screenTitle}>Deudas</Text>
+
       <View style={styles.summaryRow}>
         <View style={styles.summaryBox}>
           <Text style={styles.summaryLabel}>Cuota mensual total</Text>
@@ -53,17 +51,19 @@ export default function DebtsScreen() {
         </View>
       </View>
 
-      {debts.length === 0 && (
-        <Text style={styles.helperText}>No tienes deudas registradas.</Text>
-      )}
+      {debts.length === 0 && <Text style={styles.helperText}>No tienes deudas registradas.</Text>}
 
-      {debts.map((debt) => (
-        <View key={debt.id} style={styles.card}>
+      {debts.map((debt, index) => (
+        <Animated.View
+          key={debt.id}
+          entering={FadeInDown.delay(index * 50).duration(280)}
+          style={styles.card}
+        >
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>{debt.name}</Text>
-            <TouchableOpacity onPress={() => removeDebt(debt.id)} hitSlop={10}>
+            <PressableScale onPress={() => removeDebt(debt.id)} hitSlop={10}>
               <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           <Text style={styles.balance}>{formatCurrency(debt.remainingAmount)}</Text>
           <Text style={styles.helperText}>Pendiente</Text>
@@ -82,7 +82,7 @@ export default function DebtsScreen() {
               <Text style={styles.metricValue}>{formatCurrency(debtMonthlyInterestCost(debt))}</Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
       ))}
 
       <View style={styles.newCard}>
@@ -118,9 +118,9 @@ export default function DebtsScreen() {
           value={rate}
           onChangeText={setRate}
         />
-        <TouchableOpacity style={styles.saveButton} onPress={handleAdd}>
+        <PressableScale style={styles.saveButton} onPress={handleAdd}>
           <Text style={styles.saveButtonText}>Añadir deuda</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </ScrollView>
   );
@@ -130,35 +130,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
+    padding: spacing.lg,
+  },
+  screenTitle: {
+    ...typography.display,
+    fontSize: 26,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   summaryRow: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   summaryBox: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: radius.md,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
   },
   summaryLabel: {
+    ...typography.caption,
     color: colors.textSecondary,
-    fontSize: 12,
+    textTransform: 'uppercase',
   },
   summaryValue: {
+    ...typography.numeric,
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -168,71 +175,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardTitle: {
+    ...typography.subtitle,
     color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
   },
   balance: {
+    ...typography.numeric,
     color: colors.negative,
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 8,
+    marginTop: spacing.md,
   },
   helperText: {
-    color: colors.textSecondary,
+    ...typography.body,
     fontSize: 12,
+    color: colors.textSecondary,
   },
   metricsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 12,
-    gap: 8,
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   metric: {
     flex: 1,
   },
   metricLabel: {
+    ...typography.micro,
     color: colors.textSecondary,
-    fontSize: 11,
   },
   metricValue: {
+    ...typography.subtitle,
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
     marginTop: 2,
   },
   newCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 10,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginTop: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 10,
+    gap: spacing.md,
   },
   sectionHeader: {
+    ...typography.title,
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
+    padding: spacing.md,
     color: colors.textPrimary,
   },
   saveButton: {
     backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   saveButtonText: {
+    ...typography.subtitle,
     color: '#fff',
-    fontWeight: '700',
   },
 });

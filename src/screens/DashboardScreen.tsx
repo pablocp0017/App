@@ -1,18 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CompositeScreenProps } from '@react-navigation/native';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { useFinanceStore } from '../store/useFinanceStore';
 import SummaryCard from '../components/SummaryCard';
 import MonthSelector from '../components/MonthSelector';
 import ExpensePieChart from '../components/ExpensePieChart';
 import Fab from '../components/Fab';
 import EditValueModal from '../components/EditValueModal';
-import { colors } from '../theme/colors';
+import AnimatedProgressBar from '../components/AnimatedProgressBar';
+import PressableScale from '../components/PressableScale';
+import { colors, gradients } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { radius, spacing } from '../theme/spacing';
 import { currentMonthKey, shiftMonthKey } from '../utils/dateUtils';
-
-const AUTO_SYNC_INTERVAL_MS = 45000;
 import {
   emergencyFundTarget,
   expensesByCategory,
@@ -24,7 +30,12 @@ import {
   totalLiabilities,
 } from '../utils/calculations';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
+const AUTO_SYNC_INTERVAL_MS = 45000;
+
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Dashboard'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export default function DashboardScreen({ navigation }: Props) {
   const accounts = useFinanceStore((s) => s.accounts);
@@ -72,6 +83,7 @@ export default function DashboardScreen({ navigation }: Props) {
     .filter((a) => a.type === 'cash' || a.type === 'bank')
     .reduce((sum, a) => sum + a.balance, 0);
   const emergencyCoveragePct = emergencyTarget > 0 ? Math.min(100, (liquid / emergencyTarget) * 100) : 0;
+  const netWorth = assets - liabilities;
 
   const expenseLimit = settings.monthlyExpenseLimit;
   const expensePct = expenseLimit > 0 ? Math.min(100, (expenses / expenseLimit) * 100) : 0;
@@ -79,58 +91,58 @@ export default function DashboardScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Mis finanzas</Text>
-          <View style={styles.headerIcons}>
-            <TouchableOpacity onPress={() => navigation.navigate('Accounts')} style={styles.iconButton}>
-              <Ionicons name="wallet-outline" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Debts')} style={styles.iconButton}>
-              <Ionicons name="document-text-outline" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.iconButton}>
-              <Ionicons
-                name={bankConnection.connected ? 'sync-circle-outline' : 'link-outline'}
-                size={22}
-                color={colors.textPrimary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 1. Activo total y 2. Pasivo total */}
-        <View style={styles.row}>
-          <SummaryCard label="Activo total" value={formatCurrency(assets)} valueColor={colors.positive} />
-          <SummaryCard label="Pasivo total" value={formatCurrency(liabilities)} valueColor={colors.negative} />
-        </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Cabecera con patrimonio neto: 1. Activo total y 2. Pasivo total */}
+        <Animated.View entering={FadeInDown.duration(320)}>
+          <LinearGradient colors={gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
+            <Text style={styles.heroLabel}>Patrimonio neto</Text>
+            <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit>
+              {formatCurrency(netWorth)}
+            </Text>
+            <View style={styles.heroRow}>
+              <View style={styles.heroStat}>
+                <Ionicons name="trending-up" size={14} color={colors.positive} />
+                <Text style={styles.heroStatLabel}>Activo</Text>
+                <Text style={[styles.heroStatValue, { color: colors.positive }]}>
+                  {formatCurrency(assets)}
+                </Text>
+              </View>
+              <View style={styles.heroDivider} />
+              <View style={styles.heroStat}>
+                <Ionicons name="trending-down" size={14} color={colors.negative} />
+                <Text style={styles.heroStatLabel}>Pasivo</Text>
+                <Text style={[styles.heroStatValue, { color: colors.negative }]}>
+                  {formatCurrency(liabilities)}
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </Animated.View>
 
         {/* 3. Fondo de emergencia */}
-        <View style={styles.emergencyCard}>
-          <View style={styles.emergencyHeaderRow}>
+        <Animated.View entering={FadeInDown.delay(60).duration(320)} style={styles.card}>
+          <View style={styles.cardHeaderRow}>
             <Text style={styles.cardLabel}>
-              Fondo de emergencia ({settings.emergencyFundMonths} {settings.emergencyFundMonths === 1 ? 'mes' : 'meses'})
+              Fondo de emergencia · {settings.emergencyFundMonths}{' '}
+              {settings.emergencyFundMonths === 1 ? 'mes' : 'meses'}
             </Text>
             <View style={styles.headerRightGroup}>
               <Text style={styles.cardLabel}>{Math.round(emergencyCoveragePct)}%</Text>
-              <TouchableOpacity onPress={() => setEditingEmergencyMonths(true)} hitSlop={8}>
+              <PressableScale onPress={() => setEditingEmergencyMonths(true)} hitSlop={8}>
                 <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
-          <Text style={styles.emergencyValue}>{formatCurrency(emergencyTarget)}</Text>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${emergencyCoveragePct}%`, backgroundColor: colors.accent },
-              ]}
-            />
+          <Text style={styles.cardValue}>{formatCurrency(emergencyTarget)}</Text>
+          <View style={{ marginTop: spacing.md }}>
+            <AnimatedProgressBar progress={emergencyCoveragePct} color={colors.accent} />
           </View>
-          <Text style={styles.helperText}>
-            Disponible en efectivo y banco: {formatCurrency(liquid)}
-          </Text>
-        </View>
+          <Text style={styles.helperText}>Disponible en efectivo y banco: {formatCurrency(liquid)}</Text>
+        </Animated.View>
 
         {/* 4. Mes actual */}
         <MonthSelector
@@ -141,36 +153,46 @@ export default function DashboardScreen({ navigation }: Props) {
         />
 
         {/* 5. Ingresos y 6. Gastos del mes */}
-        <View style={styles.row}>
-          <SummaryCard label="Ingresos del mes" value={formatCurrency(income)} valueColor={colors.positive} />
-          <SummaryCard label="Gastos del mes" value={formatCurrency(expenses)} valueColor={colors.negative} />
-        </View>
+        <Animated.View entering={FadeInDown.delay(100).duration(320)} style={styles.row}>
+          <SummaryCard
+            label="Ingresos"
+            value={formatCurrency(income)}
+            valueColor={colors.positive}
+            icon="arrow-down-circle"
+            iconColor={colors.positive}
+          />
+          <SummaryCard
+            label="Gastos"
+            value={formatCurrency(expenses)}
+            valueColor={colors.negative}
+            icon="arrow-up-circle"
+            iconColor={colors.negative}
+          />
+        </Animated.View>
 
         {/* 7. Límite mensual de gastos */}
-        <View style={styles.limitCard}>
-          <View style={styles.emergencyHeaderRow}>
+        <Animated.View entering={FadeInDown.delay(140).duration(320)} style={styles.card}>
+          <View style={styles.cardHeaderRow}>
             <Text style={styles.cardLabel}>Límite mensual de gastos</Text>
             <View style={styles.headerRightGroup}>
               <Text style={[styles.cardLabel, overLimit && { color: colors.negative }]}>
                 {expenseLimit > 0 ? `${Math.round(expensePct)}%` : 'Sin definir'}
               </Text>
-              <TouchableOpacity onPress={() => setEditingLimit(true)} hitSlop={8}>
+              <PressableScale onPress={() => setEditingLimit(true)} hitSlop={8}>
                 <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
-          <Text style={styles.limitValue}>
-            {formatCurrency(expenses)} / {expenseLimit > 0 ? formatCurrency(expenseLimit) : '—'}
+          <Text style={styles.cardValue}>
+            {formatCurrency(expenses)}{' '}
+            <Text style={styles.cardValueMuted}>
+              / {expenseLimit > 0 ? formatCurrency(expenseLimit) : '—'}
+            </Text>
           </Text>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${expenseLimit > 0 ? expensePct : 0}%`,
-                  backgroundColor: overLimit ? colors.negative : colors.positive,
-                },
-              ]}
+          <View style={{ marginTop: spacing.md }}>
+            <AnimatedProgressBar
+              progress={expenseLimit > 0 ? expensePct : 0}
+              color={overLimit ? colors.negative : colors.positive}
             />
           </View>
           {expenseLimit === 0 && (
@@ -178,20 +200,20 @@ export default function DashboardScreen({ navigation }: Props) {
               Toca el lápiz para definir tu límite mensual y hacer seguimiento.
             </Text>
           )}
-        </View>
+        </Animated.View>
 
         {/* 8. Gráfico circular de gastos */}
-        <View style={styles.chartCard}>
+        <Animated.View entering={FadeInDown.delay(180).duration(320)} style={styles.card}>
           <Text style={styles.cardLabel}>Gastos por categoría</Text>
-          <View style={{ marginTop: 12 }}>
+          <View style={{ marginTop: spacing.md }}>
             <ExpensePieChart data={categoryTotals} />
           </View>
-        </View>
+        </Animated.View>
 
-        <View style={styles.debtSummaryCard}>
+        <Animated.View entering={FadeInDown.delay(220).duration(320)} style={styles.card}>
           <Text style={styles.cardLabel}>Deudas pendientes</Text>
-          <Text style={styles.limitValue}>{formatCurrency(totalDebts(debts))}</Text>
-        </View>
+          <Text style={styles.cardValue}>{formatCurrency(totalDebts(debts))}</Text>
+        </Animated.View>
       </ScrollView>
 
       {/* 9. Botón flotante para registrar ingresos/gastos */}
@@ -239,104 +261,88 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 16,
+  heroCard: {
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
-  title: {
+  heroLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  heroValue: {
+    ...typography.display,
     color: colors.textPrimary,
-    fontSize: 24,
-    fontWeight: '800',
+    marginTop: spacing.xs,
   },
-  headerIcons: {
+  heroRow: {
     flexDirection: 'row',
-    gap: 14,
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    gap: spacing.lg,
   },
-  iconButton: {
-    padding: 2,
+  heroStat: {
+    flex: 1,
+  },
+  heroStatLabel: {
+    ...typography.micro,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  heroStatValue: {
+    ...typography.subtitle,
+    marginTop: 2,
+  },
+  heroDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.borderStrong,
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
-  emergencyCard: {
+  card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  emergencyHeaderRow: {
+  cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   headerRightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   cardLabel: {
+    ...typography.caption,
     color: colors.textSecondary,
-    fontSize: 12,
+    textTransform: 'uppercase',
   },
-  emergencyValue: {
+  cardValue: {
+    ...typography.numeric,
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
-  progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.surfaceAlt,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
+  cardValueMuted: {
+    ...typography.subtitle,
+    color: colors.textSecondary,
   },
   helperText: {
+    ...typography.micro,
     color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 8,
-  },
-  limitCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 4,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  limitValue: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  chartCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  debtSummaryCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginTop: spacing.sm,
   },
 });

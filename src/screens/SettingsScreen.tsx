@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { colors } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { radius, spacing } from '../theme/spacing';
 import { mockBankSyncProvider } from '../services/bankSync/mockProvider';
 import { BankInstitution } from '../services/bankSync/types';
+import PressableScale from '../components/PressableScale';
 
 export default function SettingsScreen() {
   const bankConnection = useFinanceStore((s) => s.bankConnection);
@@ -65,6 +69,7 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      <Text style={styles.screenTitle}>Banco</Text>
       <Text style={styles.sectionHeader}>Conexión bancaria (Open Banking)</Text>
       <Text style={styles.helperText}>
         Conecta tu cuenta bancaria para que tus ingresos y gastos se registren automáticamente
@@ -72,7 +77,7 @@ export default function SettingsScreen() {
       </Text>
 
       {bankConnection.connected ? (
-        <View style={styles.connectedCard}>
+        <Animated.View entering={FadeInDown.duration(280)} style={styles.connectedCard}>
           <View style={styles.connectedHeader}>
             <Ionicons name="checkmark-circle" size={22} color={colors.positive} />
             <Text style={styles.connectedTitle}>{bankConnection.institutionName}</Text>
@@ -82,35 +87,36 @@ export default function SettingsScreen() {
               ? `Última sincronización: ${new Date(bankConnection.lastSyncAt).toLocaleString('es-ES')}`
               : 'Aún no se ha sincronizado ningún movimiento.'}
           </Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSyncNow} disabled={syncing}>
+          <PressableScale style={styles.primaryButton} onPress={handleSyncNow} disabled={syncing}>
             {syncing ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.primaryButtonText}>Sincronizar ahora</Text>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleDisconnect}>
+          </PressableScale>
+          <PressableScale style={styles.secondaryButton} onPress={handleDisconnect}>
             <Text style={styles.secondaryButtonText}>Desconectar banco</Text>
-          </TouchableOpacity>
-        </View>
+          </PressableScale>
+        </Animated.View>
       ) : (
         <View>
           <Text style={styles.subHeader}>Elige tu entidad bancaria</Text>
-          {institutions.map((inst) => (
-            <TouchableOpacity
-              key={inst.id}
-              style={styles.institutionRow}
-              onPress={() => handleConnect(inst)}
-              disabled={connectingId !== null}
-            >
-              <Ionicons name="business-outline" size={18} color={colors.accent} />
-              <Text style={styles.institutionName}>{inst.name}</Text>
-              {connectingId === inst.id ? (
-                <ActivityIndicator color={colors.accent} />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-              )}
-            </TouchableOpacity>
+          {institutions.map((inst, index) => (
+            <Animated.View key={inst.id} entering={FadeInDown.delay(index * 50).duration(260)}>
+              <PressableScale
+                style={styles.institutionRow}
+                onPress={() => handleConnect(inst)}
+                disabled={connectingId !== null}
+              >
+                <Ionicons name="business-outline" size={18} color={colors.accent} />
+                <Text style={styles.institutionName}>{inst.name}</Text>
+                {connectingId === inst.id ? (
+                  <ActivityIndicator color={colors.accent} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                )}
+              </PressableScale>
+            </Animated.View>
           ))}
         </View>
       )}
@@ -131,98 +137,101 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
+    padding: spacing.lg,
+  },
+  screenTitle: {
+    ...typography.display,
+    fontSize: 26,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
   },
   sectionHeader: {
+    ...typography.title,
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 8,
+    marginTop: spacing.lg,
   },
   subHeader: {
+    ...typography.subtitle,
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 14,
-    marginBottom: 8,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   helperText: {
-    color: colors.textSecondary,
+    ...typography.body,
     fontSize: 12,
-    marginTop: 4,
-    marginBottom: 10,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
   connectedCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: radius.md,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   connectedHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   connectedTitle: {
+    ...typography.title,
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
   },
   institutionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 14,
-    marginBottom: 10,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   institutionName: {
     flex: 1,
+    ...typography.subtitle,
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   primaryButton: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
   primaryButtonText: {
+    ...typography.subtitle,
     color: '#fff',
-    fontWeight: '700',
   },
   secondaryButton: {
-    marginTop: 10,
-    borderRadius: 12,
-    paddingVertical: 14,
+    marginTop: spacing.sm,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.md,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
   secondaryButtonText: {
+    ...typography.subtitle,
     color: colors.negative,
-    fontWeight: '700',
   },
   noteCard: {
-    marginTop: 24,
-    marginBottom: 30,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceAlt,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xxl,
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
     borderColor: colors.border,
   },
   noteText: {
+    ...typography.micro,
     color: colors.textSecondary,
-    fontSize: 11,
     lineHeight: 16,
   },
 });

@@ -2,11 +2,8 @@ import React from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
-import DashboardScreen from '../screens/DashboardScreen';
+import MainTabs from './MainTabs';
 import AddTransactionScreen from '../screens/AddTransactionScreen';
-import AccountsScreen from '../screens/AccountsScreen';
-import DebtsScreen from '../screens/DebtsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
 import { colors } from '../theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -33,15 +30,12 @@ export default function RootNavigator() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen
           name="AddTransaction"
           component={AddTransactionScreen}
           options={{ title: 'Registrar movimiento', presentation: 'modal' }}
         />
-        <Stack.Screen name="Accounts" component={AccountsScreen} options={{ title: 'Cuentas' }} />
-        <Stack.Screen name="Debts" component={DebtsScreen} options={{ title: 'Deudas' }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Banco (Open Banking)' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

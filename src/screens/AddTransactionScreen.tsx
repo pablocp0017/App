@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { colors } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { radius, spacing } from '../theme/spacing';
 import {
   EXPENSE_CATEGORIES,
   EXPENSE_CATEGORY_COLORS,
@@ -23,6 +24,7 @@ import {
   TransactionType,
 } from '../types';
 import { todayISODate } from '../utils/dateUtils';
+import PressableScale from '../components/PressableScale';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddTransaction'>;
 
@@ -74,26 +76,24 @@ export default function AddTransactionScreen({ navigation }: Props) {
     >
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.typeToggle}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.typeButton, type === 'expense' && styles.typeButtonActiveExpense]}
             onPress={() => setType('expense')}
+            haptic={false}
           >
-            <Text
-              style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}
-            >
+            <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>
               Gasto
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressableScale>
+          <PressableScale
             style={[styles.typeButton, type === 'income' && styles.typeButtonActiveIncome]}
             onPress={() => setType('income')}
+            haptic={false}
           >
-            <Text
-              style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}
-            >
+            <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>
               Ingreso
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         <Text style={styles.sectionLabel}>Cantidad (€)</Text>
@@ -118,22 +118,21 @@ export default function AddTransactionScreen({ navigation }: Props) {
         <Text style={styles.sectionLabel}>Cuenta afectada</Text>
         <View style={styles.chipRow}>
           {spendableAccounts.map((acc) => (
-            <TouchableOpacity
+            <PressableScale
               key={acc.id}
               style={[styles.chip, accountId === acc.id && styles.chipActive]}
               onPress={() => setAccountId(acc.id)}
+              haptic={false}
             >
               <Ionicons
                 name={acc.type === 'cash' ? 'cash-outline' : 'card-outline'}
                 size={14}
                 color={accountId === acc.id ? '#fff' : colors.textSecondary}
               />
-              <Text
-                style={[styles.chipText, accountId === acc.id && styles.chipTextActive]}
-              >
+              <Text style={[styles.chipText, accountId === acc.id && styles.chipTextActive]}>
                 {acc.name}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           ))}
         </View>
 
@@ -142,7 +141,7 @@ export default function AddTransactionScreen({ navigation }: Props) {
             <Text style={styles.sectionLabel}>Categoría</Text>
             <View style={styles.chipRow}>
               {EXPENSE_CATEGORIES.map((cat) => (
-                <TouchableOpacity
+                <PressableScale
                   key={cat}
                   style={[
                     styles.categoryChip,
@@ -152,13 +151,12 @@ export default function AddTransactionScreen({ navigation }: Props) {
                     },
                   ]}
                   onPress={() => setCategory(cat)}
+                  haptic={false}
                 >
-                  <Text
-                    style={[styles.chipText, category === cat && styles.chipTextActive]}
-                  >
+                  <Text style={[styles.chipText, category === cat && styles.chipTextActive]}>
                     {EXPENSE_CATEGORY_LABELS[cat]}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               ))}
             </View>
           </>
@@ -174,24 +172,25 @@ export default function AddTransactionScreen({ navigation }: Props) {
             ) : (
               <View style={styles.chipRow}>
                 {debts.map((d) => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={d.id}
                     style={[styles.chip, debtId === d.id && styles.chipActive]}
                     onPress={() => setDebtId(d.id)}
+                    haptic={false}
                   >
                     <Text style={[styles.chipText, debtId === d.id && styles.chipTextActive]}>
                       {d.name}
                     </Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             )}
           </>
         )}
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+        <PressableScale style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>Guardar</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -201,17 +200,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
+    padding: spacing.xl,
   },
   typeToggle: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
   typeButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -226,39 +225,40 @@ const styles = StyleSheet.create({
     borderColor: colors.positive,
   },
   typeButtonText: {
+    ...typography.subtitle,
     color: colors.textSecondary,
-    fontWeight: '700',
   },
   typeButtonTextActive: {
     color: '#fff',
   },
   sectionLabel: {
+    ...typography.caption,
     color: colors.textSecondary,
-    fontSize: 13,
-    marginBottom: 8,
-    marginTop: 14,
+    textTransform: 'uppercase',
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
   },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 14,
+    padding: spacing.md,
     color: colors.textPrimary,
     fontSize: 16,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -268,36 +268,35 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
   },
   categoryChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   chipText: {
+    ...typography.caption,
     color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
+    textTransform: 'none',
   },
   chipTextActive: {
     color: '#fff',
   },
   helperText: {
+    ...typography.body,
     color: colors.textSecondary,
-    fontSize: 13,
     fontStyle: 'italic',
   },
   saveButton: {
-    marginTop: 30,
+    marginTop: spacing.xxl,
     backgroundColor: colors.accent,
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
     alignItems: 'center',
   },
   saveButtonText: {
+    ...typography.title,
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
   },
 });

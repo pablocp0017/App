@@ -1,7 +1,10 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { ZoomIn } from 'react-native-reanimated';
+import PressableScale from './PressableScale';
 import { colors } from '../theme/colors';
+import { radius } from '../theme/spacing';
 
 interface Props {
   onPress: () => void;
@@ -9,27 +12,31 @@ interface Props {
 
 export default function Fab({ onPress }: Props) {
   return (
-    <TouchableOpacity style={styles.fab} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name="add" size={30} color="#FFFFFF" />
-    </TouchableOpacity>
+    <Animated.View entering={ZoomIn.delay(200).duration(280)} style={styles.wrapper}>
+      <PressableScale style={styles.fab} onPress={onPress} scaleTo={0.92} haptic={false}>
+        <Ionicons name="add" size={30} color="#FFFFFF" />
+      </PressableScale>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  fab: {
+  wrapper: {
     position: 'absolute',
     right: 20,
     bottom: 28,
+  },
+  fab: {
     width: 58,
     height: 58,
-    borderRadius: 29,
+    borderRadius: radius.pill,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
   },
 });

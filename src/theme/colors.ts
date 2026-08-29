@@ -1,12 +1,22 @@
 export const colors = {
-  background: '#0F1720',
-  surface: '#1B2530',
-  surfaceAlt: '#243040',
-  border: '#2E3B4A',
-  textPrimary: '#F5F7FA',
-  textSecondary: '#9AA7B5',
-  positive: '#4CC38A',
-  negative: '#E5646B',
-  accent: '#3E92CC',
-  warning: '#F4A259',
+  background: '#0A0E14',
+  surface: '#141B24',
+  surfaceElevated: '#1C2530',
+  border: '#242E3A',
+  borderStrong: '#324055',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#8B98A5',
+  textTertiary: '#5C6773',
+  positive: '#34D399',
+  negative: '#FB7185',
+  accent: '#6C8CFF',
+  accentSoft: 'rgba(108, 140, 255, 0.16)',
+  warning: '#FBBF24',
+  gold: '#E8C468',
+  overlay: 'rgba(5, 8, 12, 0.72)',
+};
+
+export const gradients = {
+  hero: ['#1B2A4A', '#141B24'] as const,
+  accent: ['#7C93FF', '#5A72E0'] as const,
 };

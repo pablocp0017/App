@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardTypeOptions } from 'react-native';
+import { Modal, View, Text, TextInput, StyleSheet, KeyboardTypeOptions } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import PressableScale from './PressableScale';
 import { colors } from '../theme/colors';
+import { typography } from '../theme/typography';
+import { radius, spacing } from '../theme/spacing';
 
 interface Props {
   visible: boolean;
@@ -29,8 +33,8 @@ export default function EditValueModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
+      <Animated.View entering={FadeIn.duration(180)} style={styles.backdrop}>
+        <Animated.View entering={FadeInDown.duration(220).springify().damping(18)} style={styles.card}>
           <Text style={styles.title}>{title}</Text>
           {label ? <Text style={styles.label}>{label}</Text> : null}
           <TextInput
@@ -42,18 +46,15 @@ export default function EditValueModal({
             placeholderTextColor={colors.textSecondary}
           />
           <View style={styles.actions}>
-            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
+            <PressableScale style={[styles.button, styles.cancelButton]} onPress={onCancel}>
               <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
-              onPress={() => onSave(value)}
-            >
+            </PressableScale>
+            <PressableScale style={[styles.button, styles.saveButton]} onPress={() => onSave(value)}>
               <Text style={styles.saveButtonText}>Guardar</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -61,64 +62,63 @@ export default function EditValueModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.xl,
   },
   card: {
     width: '100%',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
   },
   title: {
+    ...typography.title,
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   label: {
+    ...typography.body,
     color: colors.textSecondary,
-    fontSize: 12,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   input: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 12,
+    padding: spacing.md,
     color: colors.textPrimary,
     fontSize: 16,
   },
   actions: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
+    gap: spacing.md,
+    marginTop: spacing.lg,
   },
   button: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   cancelButtonText: {
+    ...typography.subtitle,
     color: colors.textSecondary,
-    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: colors.accent,
   },
   saveButtonText: {
+    ...typography.subtitle,
     color: '#fff',
-    fontWeight: '700',
   },
 });
