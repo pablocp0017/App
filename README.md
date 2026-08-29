@@ -23,12 +23,40 @@ Los datos se guardan localmente en el dispositivo (AsyncStorage), por lo que per
 
 ## Cómo ejecutar la app
 
+**Importante**: esta app usa Reanimated 4 (`react-native-reanimated` + `react-native-worklets`) para las animaciones, y **Reanimated 4 no funciona en la app Expo Go** de la tienda — necesita un *development build* propio (un APK/IPA que incluye tus módulos nativos, en vez del cliente genérico de Expo Go).
+
+### Opción A: build local (requiere Android Studio / Xcode)
+
 ```bash
 npm install
+npm run android   # genera e instala el development build en un emulador o dispositivo conectado
+# o
+npm run ios       # requiere macOS + Xcode
+```
+
+Esto compila el proyecto nativo, lo instala y arranca Metro automáticamente conectado a ese build.
+
+### Opción B: build en la nube con EAS (no requiere Android Studio/Xcode)
+
+```bash
+npm install
+npx eas-cli@latest login          # inicia sesión con tu cuenta de Expo (gratuita)
+npm run build:dev:android         # o build:dev:ios — compila en los servidores de Expo
+```
+
+Al terminar, EAS te da un enlace/QR para descargar e instalar el `.apk` (o el build de iOS vía TestFlight/registro de dispositivo). Instálalo en tu móvil como cualquier app.
+
+### Iniciar el servidor de desarrollo
+
+Con el development build ya instalado en el dispositivo (por cualquiera de las dos opciones):
+
+```bash
 npm run start
 ```
 
-Esto abrirá Expo Dev Tools / un código QR. Instala la app **Expo Go** en tu móvil (Android o iOS) y escanea el código QR para probar la app en tu dispositivo, o usa `npm run android` / `npm run ios` con un emulador instalado.
+Abre la app del development build en tu móvil (no Expo Go) y escanea el código QR — se conectará a Metro igual que Expo Go lo haría, pero con soporte completo para Reanimated 4.
+
+Si prefieres no lidiar con development builds ahora mismo, la alternativa es bajar `react-native-reanimated` a la versión 3.x (compatible con Expo Go) — dímelo y hago el downgrade.
 
 ## Estructura del proyecto
 
