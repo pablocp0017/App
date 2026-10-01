@@ -21,6 +21,12 @@ La app usa navegación por **pestañas inferiores** (Resumen, Cuentas, Deudas, B
 
 Los datos se guardan localmente en el dispositivo (AsyncStorage), por lo que persisten entre sesiones sin necesidad de servidor.
 
+## Versión web
+
+`web/index.html` es una versión web completa de la app en un solo archivo (HTML, CSS y JS, sin dependencias), pensada para abrirla directamente desde el navegador del móvil. Incluye lo mismo que la app (activo/pasivo, fondo de emergencia, mes en curso, límite mensual, donut de gastos, cuentas, deudas con cuotas e intereses, banco simulado por Open Banking) con controles deslizantes: navegación con píldora deslizante, selector Gasto/Ingreso, deslizadores para el fondo y el límite, movimientos que se borran deslizando a la izquierda, hoja inferior que se cierra arrastrando y botones "desliza para confirmar" en las acciones delicadas.
+
+Está publicada como página privada en claude.ai; ahí guarda tus datos en tu cuenta de forma privada. Abierta como archivo suelto, guarda los datos en el navegador (localStorage).
+
 ## Cómo ejecutar la app
 
 **Importante**: esta app usa Reanimated 4 (`react-native-reanimated` + `react-native-worklets`) para las animaciones, y **Reanimated 4 no funciona en la app Expo Go** de la tienda — necesita un *development build* propio (un APK/IPA que incluye tus módulos nativos, en vez del cliente genérico de Expo Go).
