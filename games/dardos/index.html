@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Dardos Pixel</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0a12; overflow: hidden; overscroll-behavior: none; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas { display: block; image-rendering: crisp-edges; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<canvas id="c" width="160" height="240" aria-label="Juego de dardos pixel art"></canvas>
+<noscript>Necesitas JavaScript para jugar.</noscript>
+<script>
+(() => {
+'use strict';
+
+// ---------- Configuración ----------
+const W = 160, H = 240;
+const CX = 80, CY = 100;           // centro de la diana
+const S = 64 / 170;                // mm -> px (el borde exterior del doble mide 64 px)
+const NUM_RING = 76;               // radio del aro de números (px)
+const ROUNDS = 5, PER_ROUND = 3;
+const ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+const R = { bullIn: 6.35, bullOut: 15.9, trIn: 99, trOut: 107, dbIn: 162, dbOut: 170 };
+
+const PAL = {
+  black: '#1a1a22', cream: '#e8d9a8', red: '#d23a3a', green: '#2f9e5a',
+  wire: '#b9bcc8', ring: '#12121a', ringEdge: '#454556',
+  ui: '#160f1a', uiLine: '#3b2742', yellow: '#ffd23f', white: '#f4f1e6',
+  metal: '#d5d9e2', steel: '#7d8190', dartRed: '#ff5a5f', dartLight: '#ffd0d2',
+};
+
+// ---------- Fuente pixel 3x5 ----------
+const FONT = {
+  A:'010101111101101',B:'110101110101110',C:'011100100100011',D:'110101101101110',
+  E:'111100110100111',F:'111100110100100',G:'011100101101011',H:'101101111101101',
+  I:'111010010010111',J:'001001001101010',K:'101101110101101',L:'100100100100111',
+  M:'101111111101101',N:'110101101101101',O:'010101101101010',P:'110101110100100',
+  Q:'010101101111011',R:'110101110101101',S:'011100010001110',T:'111010010010010',
+  U:'101101101101111',V:'101101101101010',W:'101101111111101',X:'101101010101101',
+  Y:'101101010010010',Z:'111001010100111',
+  '0':'111101101101111','1':'010110010010111','2':'110001010100111','3':'110001010001110',
+  '4':'101101111001001','5':'111100110001110','6':'011100111101111','7':'111001010010010',
+  '8':'111101111101111','9':'111101111001110',
+  '!':'010010010000010','.':'000000000000010',':':'000010000010000','-':'000000111000000',
+  '+':'000010111010000','/':'001001010100100',' ':'000000000000000',
+};
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+function textWidth(str, scale) { return str.length * 4 * scale - scale; }
+function px(x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
+
+function drawText(c, str, x, y, color, scale = 1, align = 'left', shadow = null) {
+  str = String(str).toUpperCase();
+  const w = textWidth(str, scale);
+  let ox = Math.round(x);
+  if (align === 'center') ox = Math.round(x - w / 2);
+  else if (align === 'right') ox = Math.round(x - w);
+  const oy = Math.round(y);
+  const pass = (dx, dy, col) => {
+    c.fillStyle = col;
+    for (let i = 0; i < str.length; i++) {
+      const g = FONT[str[i]] || FONT[' '];
+      for (let k = 0; k < 15; k++) {
+        if (g[k] === '1') c.fillRect(ox + dx + (i * 4 + (k % 3)) * scale, oy + dy + Math.floor(k / 3) * scale, scale, scale);
+      }
+    }
+  };
+  if (shadow) pass(scale, scale, shadow);
+  pass(0, 0, color);
+}
+
+// ---------- Zonas de la diana ----------
+function zoneAt(dx, dy) {
+  const r = Math.hypot(dx, dy) / S;
+  if (r <= R.bullIn) return { id: 'B50', pts: 50, label: 'DIANA', kind: 'bull' };
+  if (r <= R.bullOut) return { id: 'B25', pts: 25, label: '25', kind: 'obull' };
+  if (r > R.dbOut) return { id: 'out', pts: 0, label: 'FALLO', kind: 'out' };
+  let i = Math.floor((Math.atan2(dx, -dy) + Math.PI / 20) / (Math.PI / 10));
+  i = ((i % 20) + 20) % 20;
+  const n = ORDER[i];
+  let ring, pts, label, kind;
+  if (r < R.trIn) { ring = 'si'; pts = n; label = String(n); kind = 'single'; }
+  else if (r < R.trOut) { ring = 't'; pts = n * 3; label = 'TRIPLE ' + n; kind = 'triple'; }
+  else if (r < R.dbIn) { ring = 'so'; pts = n; label = String(n); kind = 'single'; }
+  else { ring = 'd'; pts = n * 2; label = 'DOBLE ' + n; kind = 'double'; }
+  return { id: i + ring, pts, label, kind, seg: i, ring };
+}
+
+function zoneColor(z) {
+  if (z.id === 'B50') return PAL.red;
+  if (z.id === 'B25') return PAL.green;
+  const dark = z.seg % 2 === 0;
+  if (z.ring === 't' || z.ring === 'd') return dark ? PAL.red : PAL.green;
+  return dark ? PAL.black : PAL.cream;
+}
+
+// ---------- Escena estática (pared + diana + HUD) ----------
+function buildScene() {
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const o = off.getContext('2d');
+  const bricks = ['#3b2742', '#412b49', '#372340', '#3d2845'];
+
+  const ids = [];
+  for (let y = 0; y < H; y++) {
+    ids[y] = [];
+    for (let x = 0; x < W; x++) ids[y][x] = zoneAt(x + 0.5 - CX, y + 0.5 - CY).id;
+  }
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const dx = x + 0.5 - CX, dy = y + 0.5 - CY;
+      const rpx = Math.hypot(dx, dy);
+      const z = zoneAt(dx, dy);
+      let col;
+      if (z.id !== 'out') {
+        col = zoneColor(z);
+        const right = ids[y][x + 1], down = ids[y + 1] && ids[y + 1][x];
+        if ((right !== undefined && right !== z.id) || (down !== undefined && down !== z.id)) col = PAL.wire;
+      } else if (rpx <= NUM_RING) {
+        col = rpx > NUM_RING - 1 ? PAL.ringEdge : PAL.ring;
+      } else {
+        const row = Math.floor(y / 6), off7 = (row % 2) * 7;
+        const bx = (x + off7) % 14, bi = Math.floor((x + off7) / 14);
+        if (y % 6 === 5 || bx === 13) col = '#241829';
+        else col = bricks[((Math.imul(row + 3, 73856093) ^ Math.imul(bi + 7, 19349663)) >>> 0) % 4];
+        // sombra suave alrededor de la diana (trama de puntos)
+        if (rpx < NUM_RING + 4 && (x + y) % 2 === 0) col = '#1d1322';
+      }
+      o.fillStyle = col;
+      o.fillRect(x, y, 1, 1);
+    }
+  }
+
+  // números alrededor
+  for (let i = 0; i < 20; i++) {
+    const a = (i * Math.PI) / 10;
+    const tx = CX + Math.sin(a) * 70, ty = CY - Math.cos(a) * 70;
+    drawText(o, ORDER[i], tx, ty - 2.5, PAL.cream, 1, 'center');
+  }
+
+  // barras de interfaz
+  o.fillStyle = PAL.ui; o.fillRect(0, 0, W, 17);
+  o.fillStyle = PAL.uiLine; o.fillRect(0, 17, W, 1);
+  o.fillStyle = PAL.ui; o.fillRect(0, 180, W, H - 180);
+  o.fillStyle = PAL.uiLine; o.fillRect(0, 180, W, 1);
+  return off;
+}
+const scene = buildScene();
+
+// ---------- Sprites ----------
+const DART_PIXELS = [
+  [0, 0, PAL.metal], [1, -1, PAL.metal], [1, -2, PAL.steel], [2, -3, PAL.steel], [2, -4, PAL.steel],
+  [3, -5, PAL.dartRed], [2, -6, PAL.dartRed], [4, -4, PAL.dartRed], [4, -6, PAL.dartRed],
+  [3, -6, PAL.dartLight], [3, -7, PAL.dartRed], [4, -5, PAL.dartLight],
+];
+function drawDart(x, y, shadow = true) {
+  x = Math.round(x); y = Math.round(y);
+  if (shadow) for (const [dx, dy] of DART_PIXELS) px(x + dx + 1, y + dy + 1, 1, 1, 'rgba(0,0,0,0.35)');
+  for (const [dx, dy, col] of DART_PIXELS) px(x + dx, y + dy, 1, 1, col);
+}
+
+function drawReticle(x, y, t) {
+  x = Math.round(x); y = Math.round(y);
+  const col = Math.floor(t * 8) % 2 ? PAL.yellow : PAL.white;
+  const draw = (ox, oy, c) => {
+    for (let d = 3; d <= 6; d++) {
+      px(x + ox + d, y + oy, 1, 1, c); px(x + ox - d, y + oy, 1, 1, c);
+      px(x + ox, y + oy + d, 1, 1, c); px(x + ox, y + oy - d, 1, 1, c);
+    }
+    px(x + ox, y + oy, 1, 1, c);
+  };
+  draw(1, 1, 'rgba(0,0,0,0.6)');
+  draw(0, 0, col);
+}
+
+// ---------- Sonido ----------
+let actx = null, muted = false;
+function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const t = actx.currentTime + delay;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  } catch (e) { /* sin audio */ }
+}
+const sfx = {
+  throw: () => beep(620, 0.14, 'square', 0.035, -420),
+  hit: () => beep(140, 0.1, 'triangle', 0.14, -70),
+  good: () => { beep(520, 0.08, 'square', 0.04); beep(780, 0.1, 'square', 0.04, 0, 0.07); },
+  bull: () => [523, 659, 784, 1046].forEach((f, i) => beep(f, 0.12, 'square', 0.05, 0, i * 0.08)),
+  miss: () => beep(180, 0.25, 'sawtooth', 0.04, -110),
+  end: () => [392, 523, 659, 784].forEach((f, i) => beep(f, 0.16, 'square', 0.05, 0, i * 0.11)),
+};
+
+// ---------- Estado del juego ----------
+const BEST_KEY = 'dardos-pixel-best';
+function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* ignorar */ } }
+
+const G = {
+  state: 'title', // title | aim | fly | settle | roundEnd | over
+  round: 1, dart: 0, score: 0, roundScore: 0,
+  darts: [], flying: null, last: null,
+  aimT: Math.random() * 10, timer: 0, shake: 0, clock: 0,
+  best: loadBest(), newBest: false,
+};
+
+function aimPos() {
+  const w = 2.0 + 0.45 * (G.round - 1);
+  return {
+    x: CX + 62 * Math.sin(G.aimT * w),
+    y: CY + 62 * Math.sin(G.aimT * w * 1.37 + 1.0),
+  };
+}
+
+function startGame() {
+  Object.assign(G, { state: 'aim', round: 1, dart: 0, score: 0, roundScore: 0, darts: [], flying: null, last: null, newBest: false });
+}
+
+function throwDart() {
+  if (G.state !== 'aim') return;
+  const p = aimPos();
+  const tx = Math.round(p.x + (Math.random() - 0.5) * 3);
+  const ty = Math.round(p.y + (Math.random() - 0.5) * 3);
+  G.flying = { sx: CX + (tx - CX) * 0.35, sy: H - 6, tx, ty, t: 0 };
+  G.state = 'fly';
+  sfx.throw();
+}
+
+function land() {
+  const f = G.flying;
+  const z = zoneAt(f.tx + 0.5 - CX, f.ty + 0.5 - CY);
+  G.score += z.pts;
+  G.roundScore += z.pts;
+  G.darts.push({ x: f.tx, y: f.ty });
+  G.last = { zone: z, x: f.tx, y: f.ty, t: 0 };
+  G.flying = null;
+  G.dart++;
+  G.shake = 0.18;
+  G.timer = 0.75;
+  G.state = 'settle';
+  sfx.hit();
+  if (z.kind === 'bull') sfx.bull();
+  else if (z.kind === 'triple' || z.kind === 'double' || z.kind === 'obull') sfx.good();
+  else if (z.kind === 'out') sfx.miss();
+}
+
+function action() {
+  if (G.state === 'title') startGame();
+  else if (G.state === 'aim') throwDart();
+  else if (G.state === 'over' && G.timer <= 0) startGame();
+}
+
+function update(dt) {
+  G.clock += dt;
+  G.aimT += dt;
+  if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
+  if (G.last) G.last.t += dt;
+
+  if (G.state === 'fly') {
+    G.flying.t += dt / 0.18;
+    if (G.flying.t >= 1) land();
+  } else if (G.state === 'settle') {
+    G.timer -= dt;
+    if (G.timer <= 0) {
+      if (G.dart >= PER_ROUND) { G.state = 'roundEnd'; G.timer = 1.4; }
+      else G.state = 'aim';
+    }
+  } else if (G.state === 'roundEnd') {
+    G.timer -= dt;
+    if (G.timer <= 0) {
+      G.darts = []; G.dart = 0; G.roundScore = 0; G.last = null;
+      G.round++;
+      if (G.round > ROUNDS) {
+        G.round = ROUNDS;
+        G.state = 'over'; G.timer = 0.8;
+        if (G.score > G.best) { G.best = G.score; G.newBest = true; saveBest(G.best); }
+        sfx.end();
+      } else G.state = 'aim';
+    }
+  } else if (G.state === 'over') {
+    if (G.timer > 0) G.timer -= dt;
+  }
+}
+
+// ---------- Dibujo ----------
+function rankFor(score) {
+  if (score < 150) return 'PRINCIPIANTE';
+  if (score < 300) return 'AFICIONADO';
+  if (score < 450) return 'CRACK';
+  return 'LEYENDA';
+}
+
+function draw() {
+  ctx.fillStyle = '#241829';
+  ctx.fillRect(0, 0, W, H);
+
+  // escena con pequeño temblor al impactar
+  ctx.save();
+  if (G.shake > 0) ctx.translate(Math.random() < 0.5 ? -1 : 1, Math.random() < 0.5 ? -1 : 0);
+  ctx.drawImage(scene, 0, 0);
+  for (const d of G.darts) drawDart(d.x, d.y);
+  if (G.flying) {
+    const f = G.flying, t = Math.min(1, f.t), e = 1 - (1 - t) * (1 - t);
+    drawDart(f.sx + (f.tx - f.sx) * e, f.sy + (f.ty - f.sy) * e - Math.sin(t * Math.PI) * 14);
+  }
+  ctx.restore();
+
+  if (G.state === 'aim') { const p = aimPos(); drawReticle(p.x, p.y, G.clock); }
+
+  // puntos flotantes sobre el impacto
+  if (G.last && G.last.t < 0.9 && G.state !== 'title') {
+    const txt = '+' + G.last.zone.pts;
+    const fy = G.last.y - 10 - G.last.t * 16;
+    drawText(ctx, txt, Math.min(Math.max(G.last.x, 10), W - 10), fy, PAL.yellow, 1, 'center', '#000');
+  }
+
+  // HUD superior
+  drawText(ctx, 'RONDA ' + G.round + '/' + ROUNDS, 5, 6, PAL.white, 1, 'left', '#000');
+  drawText(ctx, 'PUNTOS ' + G.score, W - 5, 6, PAL.yellow, 1, 'right', '#000');
+
+  // panel inferior
+  if (G.state === 'roundEnd') {
+    drawText(ctx, '+' + G.roundScore, CX, 190, PAL.yellow, 3, 'center', '#000');
+    drawText(ctx, 'TOTAL DE LA RONDA', CX, 212, PAL.white, 1, 'center');
+  } else if (G.last && G.state !== 'title') {
+    const z = G.last.zone;
+    const col = z.kind === 'out' ? '#8a8a99' : (z.kind === 'bull' ? PAL.dartRed : PAL.yellow);
+    drawText(ctx, z.pts > 0 ? '+' + z.pts : '0', CX, 190, col, 3, 'center', '#000');
+    drawText(ctx, z.label, CX, 212, PAL.white, 1, 'center');
+  } else if (G.state === 'aim' || G.state === 'fly') {
+    drawText(ctx, 'TOCA PARA LANZAR', CX, 196, Math.floor(G.clock * 2) % 2 ? PAL.white : '#8d7f99', 1, 'center');
+  }
+  // dardos restantes
+  if (G.state !== 'title' && G.state !== 'over') {
+    for (let i = 0; i < PER_ROUND - G.dart; i++) drawDart(10 + i * 9, 236, false);
+  }
+  drawText(ctx, muted ? 'SON OFF' : 'SON ON', W - 4, 231, '#8d7f99', 1, 'right');
+
+  if (G.state === 'title') drawTitle();
+  if (G.state === 'over') drawGameOver();
+}
+
+function panel(y0, y1) {
+  ctx.fillStyle = 'rgba(14,10,18,0.86)';
+  ctx.fillRect(8, y0, W - 16, y1 - y0);
+  ctx.fillStyle = PAL.yellow;
+  ctx.fillRect(8, y0, W - 16, 1); ctx.fillRect(8, y1 - 1, W - 16, 1);
+  ctx.fillRect(8, y0, 1, y1 - y0); ctx.fillRect(W - 9, y0, 1, y1 - y0);
+}
+
+function drawTitle() {
+  panel(54, 150);
+  drawText(ctx, 'DARDOS', CX, 66, PAL.dartRed, 4, 'center', '#000');
+  drawText(ctx, 'PIXEL', CX, 92, PAL.yellow, 2, 'center', '#000');
+  drawText(ctx, ROUNDS + ' RONDAS - ' + PER_ROUND + ' DARDOS', CX, 112, PAL.white, 1, 'center');
+  if (Math.floor(G.clock * 2) % 2) drawText(ctx, 'TOCA PARA JUGAR', CX, 126, PAL.yellow, 1, 'center');
+  drawText(ctx, 'RECORD ' + G.best, CX, 138, '#8d7f99', 1, 'center');
+}
+
+function drawGameOver() {
+  panel(40, 160);
+  drawText(ctx, 'FIN', CX, 48, PAL.dartRed, 4, 'center', '#000');
+  drawText(ctx, G.score + ' PTS', CX, 74, PAL.yellow, 2, 'center', '#000');
+  drawText(ctx, rankFor(G.score), CX, 94, PAL.white, 1, 'center');
+  if (G.newBest) {
+    if (Math.floor(G.clock * 3) % 2) drawText(ctx, 'NUEVO RECORD!', CX, 110, PAL.dartRed, 1, 'center');
+  } else drawText(ctx, 'RECORD ' + G.best, CX, 110, '#8d7f99', 1, 'center');
+  if (G.timer <= 0 && Math.floor(G.clock * 2) % 2) drawText(ctx, 'TOCA PARA OTRA VEZ', CX, 136, PAL.yellow, 1, 'center');
+}
+
+// ---------- Entrada ----------
+function toggleMute() { muted = !muted; if (!muted) beep(660, 0.08, 'square', 0.04); }
+
+window.addEventListener('pointerdown', (e) => {
+  const r = canvas.getBoundingClientRect();
+  const lx = ((e.clientX - r.left) / r.width) * W, ly = ((e.clientY - r.top) / r.height) * H;
+  if (lx >= 100 && lx <= W && ly >= 224 && ly <= H) { toggleMute(); return; }
+  action();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowDown') { e.preventDefault(); action(); }
+  else if (e.code === 'KeyM') toggleMute();
+});
+
+// ---------- Escalado entero para mantener los píxeles nítidos ----------
+function resize() {
+  const s = Math.max(1, Math.floor(Math.min(window.innerWidth / W, window.innerHeight / H)));
+  canvas.style.width = W * s + 'px';
+  canvas.style.height = H * s + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ---------- Bucle ----------
+let prev = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - prev) / 1000);
+  prev = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// Ganchos para pruebas automáticas
+window.__dardos = { G, action, zoneAt, FONT };
+})();
+</script>
+</body>
+</html>
